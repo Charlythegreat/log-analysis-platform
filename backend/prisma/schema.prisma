@@ -1,0 +1,60 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Normalized log entry persisted to PostgreSQL.
+///
+/// Fields map to the required data model:
+///   timestamp       — when the log event occurred
+///   level           — severity (debug → fatal)
+///   source          — service / application that emitted the log
+///   message         — human-readable log message
+///   rawLog          — verbatim content before parsing / normalization
+///   ingestionSource — channel that delivered the log (api, syslog-agent, file-upload, …)
+model LogEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  level     LogLevel
+  message   String   @db.Text
+  source    String   @db.VarChar(255)
+  timestamp DateTime @default(now())
+
+  // Verbatim content before parsing/normalization (always stored)
+  rawLog String @map("raw_log") @db.Text
+
+  // How this log was delivered to the platform
+  ingestionSource String @default("api") @map("ingestion_source") @db.VarChar(64)
+
+  // Detected format of the original log line (json, syslog, clf, generic, …)
+  format String? @db.VarChar(32)
+
+  // Arbitrary structured metadata (parsed fields, tracing context, etc.)
+  metadata Json? @db.JsonB
+
+  // Tracking
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([level])
+  @@index([source])
+  @@index([timestamp])
+  @@index([ingestionSource])
+  @@index([createdAt])
+  @@map("log_entries")
+}
+
+enum LogLevel {
+  debug
+  info
+  warn
+  error
+  fatal
+
+  @@map("log_level")
+}
